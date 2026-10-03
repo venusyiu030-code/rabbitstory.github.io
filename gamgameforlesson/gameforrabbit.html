@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文言字詞大配對 - 守株待兔升級版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #FEF3C7 0%, #D1FAE5 50%, #E0F2FE 100%);
+            min-height: 100vh;
+        }
+
+        .bounce-in {
+            animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); opacity: 1; }
+            70% { transform: scale(0.95); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        .term-card {
+            background-color: #FDF2F8;
+            border: 3px solid #F472B6;
+            transition: all 0.25s ease;
+            min-height: 75px;
+        }
+        .term-card:hover:not(.matched) {
+            transform: translateY(-2px);
+            border-color: #EC4899;
+            box-shadow: 0 6px 15px rgba(236, 72, 153, 0.2);
+        }
+        .term-card.active {
+            border-color: #2563EB;
+            background-color: #EFF6FF;
+            transform: scale(1.03);
+            box-shadow: 0 0 20px rgba(37, 99, 235, 0.4);
+        }
+        .term-card.matched {
+            background-color: #ECFDF5 !important;
+            border-color: #059669 !important;
+            opacity: 0.95;
+            pointer-events: none;
+        }
+
+        .meaning-card {
+            background-color: #FFFFFF;
+            border: 3px solid #E5E7EB;
+            transition: all 0.25s ease;
+            min-height: 75px;
+        }
+        .meaning-card:hover:not(.matched) {
+            transform: translateY(-2px);
+            border-color: #F59E0B;
+            box-shadow: 0 6px 15px rgba(245, 158, 11, 0.2);
+        }
+        .meaning-card.matched {
+            background-color: #ECFDF5 !important;
+            border-color: #059669 !important;
+            opacity: 0.95;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-between p-3 md:p-6 min-h-screen relative overflow-x-hidden">
+
+    <header class="w-full max-w-6xl bg-white/95 backdrop-blur rounded-3xl p-4 shadow-xl border-4 border-amber-300 flex flex-col sm:flex-row justify-between items-center gap-4 my-2 z-20">
+        <div class="flex items-center gap-3">
+            <span class="text-4xl animate-bounce">🌳🐇</span>
+            <div>
+                <h1 class="text-2xl font-black text-amber-700">文言字詞大配對</h1>
+                <p class="text-sm text-gray-600 font-bold">《守株待兔》趣味連線挑戰（闖關答對看大圖）</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4 bg-amber-50 px-6 py-2.5 rounded-2xl border-2 border-amber-200">
+            <div class="text-center">
+                <div class="text-xs text-gray-500 font-bold">配對進度</div>
+                <div id="scoreDisplay" class="text-2xl font-black text-emerald-600">0 / 7</div>
+            </div>
+            <div class="h-8 w-px bg-amber-300"></div>
+            <div class="text-center">
+                <div class="text-xs text-gray-500 font-bold">通關時間</div>
+                <div id="timerDisplay" class="text-2xl font-black text-blue-600">00:00</div>
+            </div>
+            <button onclick="initGame()" class="ml-2 bg-amber-500 hover:bg-amber-600 text-white font-bold p-2.5 rounded-xl shadow transition transform active:scale-95" title="重新開始">
+                🔄
+            </button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-6xl relative my-auto z-20 py-4">
+        <canvas id="lineCanvas" class="absolute inset-0 pointer-events-none z-10 w-full h-full"></canvas>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start relative z-20">
+            <section class="md:col-span-5 flex flex-col gap-3">
+                <div class="bg-pink-100 border-2 border-pink-300 rounded-2xl p-3 text-center text-pink-800 font-black text-sm shadow-sm flex items-center justify-center gap-2">
+                    <span>👉</span> <span>左側：文言字詞（順序排列，點擊選取）</span>
+                </div>
+                <div id="termsContainer" class="flex flex-col gap-3"></div>
+            </section>
+
+            <div class="hidden md:block md:col-span-2 h-full flex items-center justify-center">
+                <div class="text-3xl animate-pulse text-amber-500 text-center font-black mt-32">⚡</div>
+            </div>
+
+            <section class="md:col-span-5 flex flex-col gap-3">
+                <div class="bg-emerald-100 border-2 border-emerald-300 rounded-2xl p-3 text-center text-emerald-800 font-black text-sm shadow-sm flex items-center justify-center gap-2">
+                    <span>👈</span> <span>右側：生動圖文解析（點擊對應連線）</span>
+                </div>
+                <div id="meaningsContainer" class="flex flex-col gap-3"></div>
+            </section>
+        </div>
+    </main>
+
+    <div id="matchSuccessModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full mx-4 text-center border-4 border-emerald-400 bounce-in card-shadow relative">
+            <div class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-emerald-500 text-white font-black px-6 py-1.5 rounded-full shadow-lg text-lg border-2 border-white">
+                🎉 配對成功！
+            </div>
+            
+            <div class="w-48 h-48 mx-auto rounded-2xl overflow-hidden border-4 border-amber-200 bg-amber-50 mt-4 mb-3 shadow-md flex items-center justify-center">
+                <img id="modalSuccessImg" src="" alt="Illustration" class="w-full h-full object-cover">
+            </div>
+
+            <div id="modalSuccessText" class="text-gray-800 font-bold text-base mb-5 leading-relaxed bg-amber-50/80 p-3 rounded-2xl border border-amber-200"></div>
+            
+            <button onclick="closeMatchModal()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-lg py-3 rounded-2xl shadow-lg transform active:scale-95 transition-all">
+                繼續挑戰下一題 👍
+            </button>
+        </div>
+    </div>
+
+    <div id="modalOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div id="modalContent" class="bg-white rounded-3xl p-8 max-w-md w-full mx-4 text-center border-4 border-amber-400 bounce-in card-shadow">
+            <div id="modalEmoji" class="text-6xl mb-3 animate-bounce">🏆</div>
+            <h3 id="modalTitle" class="text-3xl font-black text-amber-700 mb-2">太厲害了！全部通關！</h3>
+            <p id="modalMessage" class="text-gray-600 font-bold mb-6 leading-relaxed">你已經完美學會了所有《守株待兔》的文言字詞與精美解析！</p>
+            <button onclick="initGame()" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-lg py-3.5 rounded-2xl shadow-lg transform active:scale-95 transition-all">
+                再玩一次 🔄
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* ==========================================================================
+         * 老師請看這裡：
+         * 這裡的檔名只能寫「純檔名」（例如 "zhu.png"），絕對不能加上中文或等號！
+         * 請把你的 PNG 圖片和這個 HTML 檔案放在同一個資料夾，並將檔名對應填在下方：
+         * ========================================================================== */
+        const successPngImages = {
+            1: "zhu.png",  // 第1題「株」對應的圖片檔名
+            2: "chu.png",  // 第2題「觸」對應的圖片檔名
+            3: "shi.png",  // 第3題「釋」對應的圖片檔名
+            4: "qi.png",   // 第4題「其」對應的圖片檔名
+            5: "lei.png",  // 第5題「耒」對應的圖片檔名
+            6: "ji.png",   // 第6題「冀」對應的圖片檔名
+            7: "fu.png"    // 第7題「復」對應的圖片檔名
+        };
+
+        const gameData = [
+            {
+                id: 1,
+                term: "1. 株",
+                meaning: "樹幹（農夫休息、兔子撞上的那棵樹）",
+                emoji: "🌳"
+            },
+            {
+                id: 2,
+                term: "2. 觸",
+                meaning: "撞到、碰撞（兔子不小心撞到樹幹）",
+                emoji: "🐇💥"
+            },
+            {
+                id: 3,
+                term: "3. 釋",
+                meaning: "放下（農夫放下手中的農具休息）",
+                emoji: "🧑‍🌾"
+            },
+            {
+                id: 4,
+                term: "4. 其",
+                meaning: "代詞，他的（指農夫自己）",
+                emoji: "👉"
+            },
+            {
+                id: 5,
+                term: "5. 耒",
+                meaning: "古代用來耕田翻土的農具（形狀像木叉）",
+                emoji: "⛏️"
+            },
+            {
+                id: 6,
+                term: "6. 冀",
+                meaning: "希望（盼望兔子再次撞樹的好事發生）",
+                emoji: "⭐"
+            },
+            {
+                id: 7,
+                term: "7. 復",
+                meaning: "又、再（希望兔子再次跑來）",
+                emoji: "🔄"
+            }
+        ];
+
+        let selectedTermId = null;
+        let matchedPairs = [];
+        let startTime = null;
+        let timerInterval = null;
+        let shuffledMeanings = [];
+
+        function shuffle(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        function initGame() {
+            selectedTermId = null;
+            matchedPairs = [];
+            document.getElementById('scoreDisplay').innerText = `0 / ${gameData.length}`;
+            document.getElementById('modalOverlay').classList.add('hidden');
+            document.getElementById('matchSuccessModal').classList.add('hidden');
+
+            shuffledMeanings = shuffle([...gameData]);
+
+            renderBoards();
+            startTimer();
+            clearCanvas();
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+                const minutes = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+                const seconds = String(elapsedSeconds % 60).padStart(2, '0');
+                document.getElementById('timerDisplay').innerText = `${minutes}:${seconds}`;
+            }, 1000);
+        }
+
+        function renderBoards() {
+            const termsContainer = document.getElementById('termsContainer');
+            const meaningsContainer = document.getElementById('meaningsContainer');
+
+            termsContainer.innerHTML = '';
+            meaningsContainer.innerHTML = '';
+
+            // Left column: terms ordered 1 to 7
+            gameData.forEach(item => {
+                const card = document.createElement('div');
+                card.id = `term-${item.id}`;
+                card.className = `term-card px-4 py-3 rounded-2xl font-black text-base cursor-pointer flex items-center justify-between shadow-sm ${matchedPairs.includes(item.id) ? 'matched' : ''}`;
+                card.innerHTML = `<span class="text-pink-900">${item.term}</span> <span class="text-xs text-pink-600 bg-pink-100 px-2 py-1 rounded-lg">點我連線</span>`;
+                card.onclick = () => selectTerm(item.id);
+                termsContainer.appendChild(card);
+            });
+
+            // Right column: shuffled meanings with emojis
+            shuffledMeanings.forEach(item => {
+                const card = document.createElement('div');
+                card.id = `meaning-${item.id}`;
+                card.className = `meaning-card px-3 py-2 rounded-2xl font-medium cursor-pointer flex items-center gap-3 shadow-sm ${matchedPairs.includes(item.id) ? 'matched' : ''}`;
+                
+                card.innerHTML = `
+                    <div class="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border-2 border-amber-200 bg-amber-50 flex items-center justify-center text-3xl shadow-sm">
+                        ${item.emoji}
+                    </div>
+                    <div class="text-gray-800 text-xs sm:text-sm font-bold leading-snug">${item.meaning}</div>
+                `;
+                card.onclick = () => selectMeaning(item.id);
+                meaningsContainer.appendChild(card);
+            });
+
+            setTimeout(resizeCanvas, 50);
+        }
+
+        function selectTerm(id) {
+            if (matchedPairs.includes(id)) return;
+
+            gameData.forEach(t => {
+                const el = document.getElementById(`term-${t.id}`);
+                if (el && !matchedPairs.includes(t.id)) {
+                    el.classList.remove('active');
+                }
+            });
+
+            selectedTermId = id;
+            const termCard = document.getElementById(`term-${id}`);
+            if (termCard) termCard.classList.add('active');
+        }
+
+        function selectMeaning(id) {
+            if (selectedTermId === null) {
+                showToast("💡 請先點擊左側粉紅色的一張字詞卡喔！");
+                return;
+            }
+
+            if (matchedPairs.includes(id)) return;
+
+            const meaningCard = document.getElementById(`meaning-${id}`);
+
+            if (selectedTermId === id) {
+                matchedPairs.push(id);
+
+                const termCard = document.getElementById(`term-${id}`);
+                termCard.classList.remove('active');
+                termCard.classList.add('matched');
+                meaningCard.classList.add('matched');
+
+                document.getElementById('scoreDisplay').innerText = `${matchedPairs.length} / ${gameData.length}`;
+                
+                drawAllLines();
+
+                const matchedItem = gameData.find(d => d.id === id);
+                showMatchSuccessModal(matchedItem);
+
+                selectedTermId = null;
+            } else {
+                meaningCard.classList.add('bg-red-100', 'border-red-400', 'text-red-900');
+                showToast("❌ 哎呀！這兩個不是一對喔，再試試看！");
+                setTimeout(() => {
+                    meaningCard.classList.remove('bg-red-100', 'border-red-400', 'text-red-900');
+                }, 600);
+            }
+        }
+
+        function showMatchSuccessModal(item) {
+            // Pulls image from the successPngImages object configured above
+            const imgPath = successPngImages[item.id] || "zhu.png";
+            document.getElementById('modalSuccessImg').src = imgPath;
+            document.getElementById('modalSuccessText').innerText = `${item.term}：${item.meaning}`;
+            document.getElementById('matchSuccessModal').classList.remove('hidden');
+        }
+
+        function closeMatchModal() {
+            document.getElementById('matchSuccessModal').classList.add('hidden');
+            if (matchedPairs.length === gameData.length) {
+                clearInterval(timerInterval);
+                setTimeout(showVictoryModal, 400);
+            }
+        }
+
+        function resizeCanvas() {
+            const canvas = document.getElementById('lineCanvas');
+            const parent = canvas.parentElement;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            drawAllLines();
+        }
+
+        function clearCanvas() {
+            const canvas = document.getElementById('lineCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawAllLines() {
+            const canvas = document.getElementById('lineCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const canvasRect = canvas.getBoundingClientRect();
+
+            matchedPairs.forEach(id => {
+                const termEl = document.getElementById(`term-${id}`);
+                const meaningEl = document.getElementById(`meaning-${id}`);
+
+                if (termEl && meaningEl) {
+                    const termRect = termEl.getBoundingClientRect();
+                    const meaningRect = meaningEl.getBoundingClientRect();
+
+                    const startX = termRect.right - canvasRect.left;
+                    const startY = termRect.top + termRect.height / 2 - canvasRect.top;
+                    const endX = meaningRect.left - canvasRect.left;
+                    const endY = meaningRect.top + meaningRect.height / 2 - canvasRect.top;
+
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.bezierCurveTo(startX + 60, startY, endX - 60, endY, endX, endY);
+                    ctx.strokeStyle = '#059669';
+                    ctx.lineWidth = 6;
+                    ctx.lineCap = 'round';
+                    ctx.stroke();
+                }
+            });
+        }
+
+        function showToast(msg) {
+            const existingToast = document.getElementById('toastMsg');
+            if (existingToast) existingToast.remove();
+
+            const toast = document.createElement('div');
+            toast.id = 'toastMsg';
+            toast.className = 'fixed top-6 left-1/2 transform -translate-x-1/2 bg-amber-600 text-white font-bold px-6 py-3 rounded-2xl shadow-2xl z-50 bounce-in';
+            toast.innerText = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                if (toast) toast.remove();
+            }, 2000);
+        }
+
+        function showVictoryModal() {
+            const timeStr = document.getElementById('timerDisplay').innerText;
+            document.getElementById('modalMessage').innerText = `太棒了！你總共用時 ${timeStr} 順利通關，把《守株待兔》所有文言字詞與精美插圖解釋都完美連線成功囉！`;
+            document.getElementById('modalOverlay').classList.remove('hidden');
+        }
+
+        window.onresize = resizeCanvas;
+        window.onload = function() {
+            initGame();
+        };
+    </script>
+</body>
+</html>
